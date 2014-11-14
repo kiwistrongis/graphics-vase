@@ -29,14 +29,18 @@ int display0_width = 1600;
 int display0_height = 900;
 int display1_width = 1920;
 int display1_height = 1200;
-int window_x = display0_width + ( display1_width - window_width) / 2;
-int window_y = ( display1_height - window_height) / 2;
-/*int window_x = ( display0_width - window_width) / 2;
-int window_y = ( display0_height - window_height) / 2;*/
+bool display1_connected = true;
+int window_x = display1_connected ?
+	display0_width + ( display1_width - window_width) / 2 :
+	( display0_width - window_width) / 2;
+int window_y = display1_connected ?
+	( display1_height - window_height) / 2 :
+	( display0_height - window_height) / 2;
 //camera stuff
 const double pi = M_PI;
 const double half_pi = M_PI / 2;
 const double tau = 2 * M_PI;
+//double camera_r = 200.0;
 double camera_r = 8.0;
 double theta = 0.0;
 double phi = 0.0;
@@ -44,28 +48,30 @@ double phi = 0.0;
 int shader_program = 0;
 char vertshdr_file[] = "shdr/vase.vert.glsl";
 char fragshdr_file[] = "shdr/vase.frag.glsl";
-char texture_file[] = "data/pnoise.png";
-char object_file[] = "data/vase.obj";
+char texture_file[] = "gen/pnoise.png";
+char object_file[] = "data/cube.obj";
+//char object_file[] = "data/vase.obj";
+//char object_file[] = "data/dragon.obj";
 //matices and stuff
 glm::vec3 camera_eye;
 glm::vec3 camera_center;
 glm::vec3 camera_up;
 glm::mat4 projection;
 //consts
-const int face_count = 12;
-const int vert_count = 36;
+const bool shader_debug = false;
+const bool model_debug = false;
 //other
-GLuint cube_vao;
+GLuint model_vao;
 struct Texture* texture;
-std::vector<tinyobj::shape_t> shapes;
-std::vector<tinyobj::material_t> materials;
+tinyobj::mesh_t model_mesh;
+uint model_vcount;
 
 //init stuff
-void vase_init();
+void model_load();
 void vars_init();
 void window_init( int argc, char** argv);
 void shaders_init();
-void cube_init();
+void vao_init();
 //destructors
 void vars_destroy();
 //event functions
@@ -77,22 +83,64 @@ void camera_recalc();
 
 int main( int argc, char** argv){
 	//init
-	vase_init();
+	model_load();
 	vars_init();
 	window_init( argc, argv);
 	shaders_init();
-	cube_init();
+	vao_init();
 
 	//start main loop
 	glutMainLoop();}
 
-void vase_init(){
-	printf("loading vase\n");
-	std::string err = tinyobj::LoadObj( shapes, materials, object_file);
+void model_load(){
+	printf("loading model\n");
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string err = tinyobj::LoadObj(
+		shapes, materials, object_file);
 
 	if( ! err.empty()){
-		printf("error loading vase:\n%s\n", err.c_str());
-		exit( 1);}}
+		printf("error loading model:\n%s\n", err.c_str());
+		exit( 1);}
+
+	//copy relevant data
+	int shape_count = shapes.size();
+	if( shape_count != 1){
+		printf("error loading model: more than one shape\n");
+		exit( 1);}
+	model_mesh = shapes.at( 0).mesh;
+	model_vcount = model_mesh.positions.size();
+	printf("vert count: %d\n", (uint) model_mesh.positions.size() / 3);
+	printf("norm count: %d\n", (uint) model_mesh.normals.size() / 3);
+	printf("index count: %d\n", (uint) model_mesh.indices.size() / 3);
+
+	//debug model info
+	if( model_debug){
+		printf("dumping vertices:\n");
+		for( uint i = 0; i < model_mesh.positions.size(); i+= 3)
+			printf("  vert %03d: %+09.4f %+09.4f %+09.4f\n", i/3,
+				model_mesh.positions.at( i + 0),
+				model_mesh.positions.at( i + 1),
+				model_mesh.positions.at( i + 2));
+		printf("\n");
+
+		printf("dumping normals:\n");
+		for( uint i = 0; i < model_mesh.normals.size(); i+= 3)
+			printf("  norm %03d: %+07.4f %+07.4f %+07.4f\n", i/3,
+				model_mesh.normals.at( i + 0),
+				model_mesh.normals.at( i + 1),
+				model_mesh.normals.at( i + 2));
+		printf("\n");
+
+		printf("dumping indices\n");
+		for( uint i = 0; i < model_mesh.indices.size(); i+= 3)
+			printf("  index %03d: %03d %03d %03d\n", i/3,
+				model_mesh.indices.at( i + 0),
+				model_mesh.indices.at( i + 1),
+				model_mesh.indices.at( i + 2));
+		printf("\n");}
+
+	printf("model loaded\n");}
 
 void vars_init(){
 	camera_eye = glm::vec3( 0.0f, 0.0f, 0.0f);
@@ -127,68 +175,82 @@ void window_init( int argc, char** argv){
 
 void shaders_init(){
 	printf("building vertex shader\n");
+	char vertshdr_file[] = "shdr/vase.vert.glsl";
 	int vertshdr = build_shader( GL_VERTEX_SHADER, vertshdr_file);
 	printf("building fragment shader\n");
 	int fragshdr = build_shader( GL_FRAGMENT_SHADER, fragshdr_file);
 	printf("building shader program\n");
 	shader_program = build_program( vertshdr, fragshdr);
-	if( true){
+	if( shader_debug){
 		printf("dumping shader program debug info\n");
 		dump_program( shader_program);}}
 
-void cube_init(){
+void vao_init(){
+	printf("loading vao\n");
 	//vars
 	GLuint vertex_buffer;
 	GLuint index_buffer;
-	GLuint texture_buffer;
+	//GLuint texture_buffer;
 	GLint vertex;
+	GLint normal_in;
 	//gen vao
-	glGenVertexArrays( 1, &cube_vao);
-	glBindVertexArray( cube_vao);
+	glGenVertexArrays( 1, &model_vao);
+	glBindVertexArray( model_vao);
+
+	//get data counts
+	size_t vert_count = model_mesh.positions.size() / 3;
+	size_t norm_count = model_mesh.normals.size() / 3;
+	size_t face_count = model_mesh.indices.size() / 3;
+	printf("vert_count: %lu\n", vert_count);
+	printf("norm_count: %lu\n", norm_count);
+	printf("face_count: %lu\n", face_count);
 
 	//geometry
-	GLfloat vertices[8][4] = {
-		{ -1.0, -1.0, -1.0, 1.0},
-		{ -1.0, -1.0,  1.0, 1.0},
-		{ -1.0,  1.0, -1.0, 1.0},
-		{ -1.0,  1.0,  1.0, 1.0},
-		{  1.0, -1.0, -1.0, 1.0},
-		{  1.0, -1.0,  1.0, 1.0},
-		{  1.0,  1.0, -1.0, 1.0},
-		{  1.0,  1.0,  1.0, 1.0}};
-	/*GLfloat normals[8][3] = {
-		{ -1.0, -1.0, -1.0},
-		{ -1.0, -1.0,  1.0},
-		{ -1.0,  1.0, -1.0},
-		{ -1.0,  1.0,  1.0},
-		{  1.0, -1.0, -1.0},
-		{  1.0, -1.0,  1.0},
-		{  1.0,  1.0, -1.0},
-		{  1.0,  1.0,  1.0}};*/
-	GLushort indexes[36] = {
-		0, 1, 3, 0, 2, 3,
-		0, 4, 5, 0, 1, 5,
-		2, 6, 7, 2, 3, 7,
-		0, 4, 6, 0, 2, 6,
-		1, 5, 7, 1, 3, 7,
-		4, 5, 7, 4, 6, 7};
+	GLfloat* verts = new GLfloat[ 4 * vert_count];
+	GLfloat* norms = new GLfloat[ 3 * norm_count];
+	GLushort* faces = new GLushort[ 3 * face_count];
+	size_t verts_size = 4 * sizeof( GLfloat) * vert_count;
+	size_t norms_size = 3 * sizeof( GLfloat) * norm_count;
+	size_t faces_size = 3 * sizeof( GLushort) * face_count;
+
+	//load geometry from mesh
+	// load verts
+	for( size_t i = 0; i < vert_count; i ++){
+		verts[ 4 * i + 0] = model_mesh.positions.at( 3 * i + 0);
+		verts[ 4 * i + 1] = model_mesh.positions.at( 3 * i + 1);
+		verts[ 4 * i + 2] = model_mesh.positions.at( 3 * i + 2);
+		verts[ 4 * i + 3] = 1.0;}
+	// load norms
+	for( size_t i = 0; i < norm_count; i ++){
+		norms[ 3 * i + 0] = model_mesh.normals.at( 3 * i + 0);
+		norms[ 3 * i + 1] = model_mesh.normals.at( 3 * i + 1);
+		norms[ 3 * i + 2] = model_mesh.normals.at( 3 * i + 2);}
+	// load indices
+	for( size_t i = 0; i < face_count; i ++){
+		faces[ 3 * i + 0] = (GLushort) model_mesh.indices.at( 3 * i + 0);
+		faces[ 3 * i + 1] = (GLushort) model_mesh.indices.at( 3 * i + 1);
+		faces[ 3 * i + 2] = (GLushort) model_mesh.indices.at( 3 * i + 2);}
 
 	//bind vertex buffer
 	glGenBuffers( 1, &vertex_buffer);
 	glBindBuffer( GL_ARRAY_BUFFER, vertex_buffer);
 	glBufferData( GL_ARRAY_BUFFER,
-		sizeof( vertices), NULL, GL_STATIC_DRAW);
+		verts_size + norms_size, NULL, GL_STATIC_DRAW);
+	//bind verts
 	glBufferSubData( GL_ARRAY_BUFFER,
-		0, sizeof( vertices), vertices);
+		0, verts_size, verts);
+	//bind norms
+	glBufferSubData( GL_ARRAY_BUFFER,
+		verts_size, norms_size, norms);
 
 	//bind index buffer
 	glGenBuffers( 1, &index_buffer);
 	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, index_buffer);
 	glBufferData( GL_ELEMENT_ARRAY_BUFFER,
-		sizeof( indexes), indexes, GL_STATIC_DRAW);
+		faces_size, faces, GL_STATIC_DRAW);
 
 	//load and bind texture
-	texture = loadTexture( texture_file);
+	/*texture = loadTexture( texture_file);
 	glGenTextures( 1, &texture_buffer);
 	glActiveTexture( GL_TEXTURE0);
 	glBindTexture( GL_TEXTURE_2D, texture_buffer);
@@ -198,7 +260,7 @@ void cube_init(){
 		texture->width, texture->height, GL_RGB,
 		GL_UNSIGNED_BYTE, texture->data);
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);*/
 
 	//use shader program
 	glUseProgram( shader_program);
@@ -206,7 +268,19 @@ void cube_init(){
 	//bind vertex
 	vertex = glGetAttribLocation( shader_program,"vertex");
 	glVertexAttribPointer( vertex, 4, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray( vertex);}
+	glEnableVertexAttribArray( vertex);
+
+	//bind normals
+	normal_in = glGetAttribLocation( shader_program, "normal_in");
+	glVertexAttribPointer( normal_in, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray( normal_in);
+
+	//destroy temp arrays
+	/*delete[] verts;
+	delete[] norms;
+	delete[] faces;*/
+	
+	printf("done loading vao\n");}
 
 void vars_destroy(){}
 
@@ -218,7 +292,7 @@ void resize( int width_new, int height_new){
 	float ratio = 1.0 * window_width / window_height;
 	glViewport( 0, 0,
 		(GLsizei) window_width, (GLsizei) window_height);
-	projection = glm::perspective( 45.0f, ratio, 1.0f, 100.0f);}
+	projection = glm::perspective( 45.0f, ratio, 1.0f, 200.0f);}
 
 void display(){
 	//clear buffer
@@ -238,9 +312,9 @@ void display(){
 	glUniformMatrix4fv( proj_loc, 1, 0, glm::value_ptr( projection));
 
 	//draw cube
-	glBindVertexArray( cube_vao);
+	glBindVertexArray( model_vao);
 	glDrawElements(
-		GL_TRIANGLES, vert_count, GL_UNSIGNED_SHORT, NULL);
+		GL_TRIANGLES, model_vcount, GL_UNSIGNED_SHORT, NULL);
 
 	//swap buffers
 	glutSwapBuffers();}
