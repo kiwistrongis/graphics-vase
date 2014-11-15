@@ -29,7 +29,7 @@ int display0_width = 1600;
 int display0_height = 900;
 int display1_width = 1920;
 int display1_height = 1200;
-bool display1_connected = true;
+bool display1_connected = false;
 int window_x = display1_connected ?
 	display0_width + ( display1_width - window_width) / 2 :
 	( display0_width - window_width) / 2;
@@ -40,17 +40,19 @@ int window_y = display1_connected ?
 const double pi = M_PI;
 const double half_pi = M_PI / 2;
 const double tau = 2 * M_PI;
-//double camera_r = 200.0;
-double camera_r = 8.0;
+//double camera_r = 8.0;
+double camera_r = 200.0;
 double theta = 0.0;
 double phi = 0.0;
+double near_plane = 1.0f;
+double far_plane = 400.0f;
 //shaders
 int shader_program = 0;
 char vertshdr_file[] = "shdr/vase.vert.glsl";
 char fragshdr_file[] = "shdr/vase.frag.glsl";
-char texture_file[] = "gen/pnoise.png";
-char object_file[] = "data/cube.obj";
-//char object_file[] = "data/vase.obj";
+char texture_file[] = "data/checkerboard.jpg";
+//char object_file[] = "data/cube.obj";
+char object_file[] = "data/vase.obj";
 //char object_file[] = "data/dragon.obj";
 //matices and stuff
 glm::vec3 camera_eye;
@@ -64,7 +66,7 @@ const bool model_debug = false;
 GLuint model_vao;
 struct Texture* texture;
 tinyobj::mesh_t model_mesh;
-uint model_vcount;
+size_t model_vcount;
 
 //init stuff
 void model_load();
@@ -109,7 +111,7 @@ void model_load(){
 		printf("error loading model: more than one shape\n");
 		exit( 1);}
 	model_mesh = shapes.at( 0).mesh;
-	model_vcount = model_mesh.positions.size();
+	model_vcount = model_mesh.indices.size();
 	printf("vert count: %d\n", (uint) model_mesh.positions.size() / 3);
 	printf("norm count: %d\n", (uint) model_mesh.normals.size() / 3);
 	printf("index count: %d\n", (uint) model_mesh.indices.size() / 3);
@@ -140,7 +142,7 @@ void model_load(){
 				model_mesh.indices.at( i + 2));
 		printf("\n");}
 
-	printf("model loaded\n");}
+	printf("model loaded\n\n");}
 
 void vars_init(){
 	camera_eye = glm::vec3( 0.0f, 0.0f, 0.0f);
@@ -190,7 +192,7 @@ void vao_init(){
 	//vars
 	GLuint vertex_buffer;
 	GLuint index_buffer;
-	//GLuint texture_buffer;
+	GLuint texture_buffer;
 	GLint vertex;
 	GLint normal_in;
 	//gen vao
@@ -215,18 +217,18 @@ void vao_init(){
 
 	//load geometry from mesh
 	// load verts
-	for( size_t i = 0; i < vert_count; i ++){
+	for( size_t i = 0; i < vert_count; i++){
 		verts[ 4 * i + 0] = model_mesh.positions.at( 3 * i + 0);
 		verts[ 4 * i + 1] = model_mesh.positions.at( 3 * i + 1);
 		verts[ 4 * i + 2] = model_mesh.positions.at( 3 * i + 2);
 		verts[ 4 * i + 3] = 1.0;}
 	// load norms
-	for( size_t i = 0; i < norm_count; i ++){
+	for( size_t i = 0; i < norm_count; i++){
 		norms[ 3 * i + 0] = model_mesh.normals.at( 3 * i + 0);
 		norms[ 3 * i + 1] = model_mesh.normals.at( 3 * i + 1);
 		norms[ 3 * i + 2] = model_mesh.normals.at( 3 * i + 2);}
 	// load indices
-	for( size_t i = 0; i < face_count; i ++){
+	for( size_t i = 0; i < face_count; i++){
 		faces[ 3 * i + 0] = (GLushort) model_mesh.indices.at( 3 * i + 0);
 		faces[ 3 * i + 1] = (GLushort) model_mesh.indices.at( 3 * i + 1);
 		faces[ 3 * i + 2] = (GLushort) model_mesh.indices.at( 3 * i + 2);}
@@ -250,7 +252,7 @@ void vao_init(){
 		faces_size, faces, GL_STATIC_DRAW);
 
 	//load and bind texture
-	/*texture = loadTexture( texture_file);
+	texture = loadPng( texture_file);
 	glGenTextures( 1, &texture_buffer);
 	glActiveTexture( GL_TEXTURE0);
 	glBindTexture( GL_TEXTURE_2D, texture_buffer);
@@ -260,7 +262,7 @@ void vao_init(){
 		texture->width, texture->height, GL_RGB,
 		GL_UNSIGNED_BYTE, texture->data);
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);*/
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	//use shader program
 	glUseProgram( shader_program);
@@ -274,6 +276,11 @@ void vao_init(){
 	normal_in = glGetAttribLocation( shader_program, "normal_in");
 	glVertexAttribPointer( normal_in, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray( normal_in);
+
+	/*texture_in = glGetAttribLocation( shader_program, "texture_in");
+	glVertexAttribPointer( texture_in, 2, GL_FLOAT, GL_FALSE,
+		0, (void*) ( sizeof( vertices) + sizeof( normals)));
+	glEnableVertexAttribArray(texture_in);*/
 
 	//destroy temp arrays
 	/*delete[] verts;
@@ -292,7 +299,7 @@ void resize( int width_new, int height_new){
 	float ratio = 1.0 * window_width / window_height;
 	glViewport( 0, 0,
 		(GLsizei) window_width, (GLsizei) window_height);
-	projection = glm::perspective( 45.0f, ratio, 1.0f, 200.0f);}
+	projection = glm::perspective( 45.0f, ratio, near_plane, far_plane);}
 
 void display(){
 	//clear buffer

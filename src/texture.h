@@ -9,15 +9,7 @@ struct Texture {
 	unsigned char* data;
 };
 
-struct Texture* loadTexture( char* filename);
-
-struct CubeMap {
-	int width;
-	int height;
-	int depth;
-	unsigned char* data[6];
-};
-
-struct CubeMap* loadCubeMap( char* basename);
+struct Texture* loadPng( char* filename);
+struct Texture* loadJpeg( char* filename);
 
 #endif
