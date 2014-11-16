@@ -10,20 +10,25 @@
 //local includes
 #include "perlin.h"
 
-const int tex_width = 512;
-const int tex_height = 512;
+const int tex_width = 2048;
+const int tex_height = 2048;
 unsigned char img[ tex_height][ tex_width][3];
-char img_filename[] = "gen/img.png";
+char marble_filename[] = "gen/marble.png";
+char wood_filename[] = "gen/wood.png";
 const double tau = 2 * M_PI;
 
 void marble_gen();
+void wood_gen();
 void img_save( char* filename);
 void img_load( char* filename);
 
 int main( int argc, char** argv){
-	marble_gen();
-	img_save( img_filename);
-}
+	if( false){
+		marble_gen();
+		img_save( marble_filename);}
+	else{
+		wood_gen();
+		img_save( wood_filename);}}
 
 void marble_gen(){
 	float scale = 0.02;
@@ -41,6 +46,26 @@ void marble_gen(){
 			img[i][j][1] =
 			img[i][j][2] =
 				round( 255.0 * noise);}}
+	delete[] args;}
+
+void wood_gen(){
+	float brown[3] = { 0x3e, 0x20, 0x0e};
+	float scale = 8.0;
+	float* args = new float[ 2];
+	float dx = scale / tex_width;
+	float dy = scale / tex_height;
+	float base;
+	for( int i = 0; i < tex_height; i++){
+		args[0] = (float) ( i * dx);
+		for( int j = 0; j < tex_width; j++){
+			args[1] = (float) ( j * dy);
+			base = noise2( args);
+			base = 0.5 * base + 0.5;
+			base *= 12.0;
+			base = base - floor( base);
+			img[i][j][0] = round( brown[0] * base);
+			img[i][j][1] = round( brown[1] * base);
+			img[i][j][2] = round( brown[2] * base);}}
 	delete[] args;}
 
 void img_save( char* filename){

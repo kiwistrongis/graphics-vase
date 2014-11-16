@@ -45,11 +45,13 @@ double theta = 0.0;
 double phi = 0.0;
 float near_plane = 1.0f;
 float far_plane = 100.0f;
+//float far_plane = 400.0f;
 //shaders
 int shader_program = 0;
 char vertshdr_file[] = "shdr/model_test.vert.glsl";
 char fragshdr_file[] = "shdr/model_test.frag.glsl";
-char texture_file[] = "gen/img.png";
+//char texture_file[] = "gen/marble.png";
+char texture_file[] = "gen/wood.png";
 //char texture_file[] = "data/checkerboard.png";
 char object_file[] = "data/cube.obj";
 //char object_file[] = "data/vase.obj";

@@ -43,12 +43,10 @@ $(package_file): $(binaries)
 		pkg/.gitignore
 
 #tests
-test: test-texgen
+test: texgen test-model
+
+texgen: bin/texgen
+	$<
 
 test-model: bin/model_test
 	primusrun $<
-
-
-test-texgen: bin/texgen
-	$<
-	eog gen/*
