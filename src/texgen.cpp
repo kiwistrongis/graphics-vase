@@ -23,29 +23,26 @@ void img_save( char* filename);
 void img_load( char* filename);
 
 int main( int argc, char** argv){
-	if( false){
-		marble_gen();
-		img_save( marble_filename);}
-	else{
-		wood_gen();
-		img_save( wood_filename);}}
+	marble_gen();
+	img_save( marble_filename);
+	wood_gen();
+	img_save( wood_filename);}
 
 void marble_gen(){
-	float scale = 0.02;
-	float* args = new float[ 3];
+	float scale = 12.0;
+	float* args = new float[ 2];
 	float dx = scale / tex_width;
 	float dy = scale / tex_height;
-	float noise;
+	float base;
 	for( int i = 0; i < tex_height; i++){
 		args[0] = (float) ( i * dx);
 		for( int j = 0; j < tex_width; j++){
 			args[1] = (float) ( j * dy);
-			args[2] = args[0] * args[1];
-			noise = noise1( cos( 0.1 * i * j + tau / noise3( args)));
+			base = cos( j*128.0 + noise2( args));
 			img[i][j][0] =
 			img[i][j][1] =
 			img[i][j][2] =
-				round( 255.0 * noise);}}
+				round( 255.0 * base);}}
 	delete[] args;}
 
 void wood_gen(){
@@ -55,6 +52,7 @@ void wood_gen(){
 	float dx = scale / tex_width;
 	float dy = scale / tex_height;
 	float base;
+	//float grain;
 	for( int i = 0; i < tex_height; i++){
 		args[0] = (float) ( i * dx);
 		for( int j = 0; j < tex_width; j++){
@@ -62,6 +60,8 @@ void wood_gen(){
 			base = noise2( args);
 			base = 0.5 * base + 0.5;
 			base *= 12.0;
+			//grain = 0.1 * cos( j*128.0 + noise2( args));
+			//base += grain;
 			base = base - floor( base);
 			img[i][j][0] = round( brown[0] * base);
 			img[i][j][1] = round( brown[1] * base);

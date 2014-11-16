@@ -39,22 +39,26 @@ int window_y = display1_connected ?
 const double pi = M_PI;
 const double half_pi = M_PI / 2;
 const double tau = 2 * M_PI;
-double camera_r = 8.0;
-//double camera_r = 200.0;
+double camera_r =
+	//8.0;
+	250.0;
 double theta = 0.0;
 double phi = 0.0;
 float near_plane = 1.0f;
-float far_plane = 100.0f;
-//float far_plane = 400.0f;
+float far_plane =
+	//100.0f;
+	400.0f;
 //shaders
 int shader_program = 0;
 char vertshdr_file[] = "shdr/model_test.vert.glsl";
 char fragshdr_file[] = "shdr/model_test.frag.glsl";
-//char texture_file[] = "gen/marble.png";
-char texture_file[] = "gen/wood.png";
-//char texture_file[] = "data/checkerboard.png";
-char object_file[] = "data/cube.obj";
-//char object_file[] = "data/vase.obj";
+char texture_file[] =
+	//"gen/marble.png";
+	"gen/wood.png";
+	//"data/checkerboard.png";
+char object_file[] =
+	//"data/cube.obj";
+	"data/vase.obj";
 //matices and stuff
 glm::vec3 camera_eye;
 glm::vec3 camera_center;
