@@ -17,12 +17,11 @@
 //local includes
 #include "shaders.h"
 #include "texture.h"
-#include "perlin.h"
 #include "../lib/tiny_obj_loader.h"
 
 //window vars
 int window;
-char window_name[] = "vase";
+char window_name[] = "model_test";
 int window_width = 800;
 int window_height = 600;
 int display0_width = 1600;
@@ -40,20 +39,20 @@ int window_y = display1_connected ?
 const double pi = M_PI;
 const double half_pi = M_PI / 2;
 const double tau = 2 * M_PI;
-//double camera_r = 8.0;
-double camera_r = 200.0;
+double camera_r = 8.0;
+//double camera_r = 200.0;
 double theta = 0.0;
 double phi = 0.0;
-double near_plane = 1.0f;
-double far_plane = 400.0f;
+float near_plane = 1.0f;
+float far_plane = 100.0f;
 //shaders
 int shader_program = 0;
-char vertshdr_file[] = "shdr/vase.vert.glsl";
-char fragshdr_file[] = "shdr/vase.frag.glsl";
-char texture_file[] = "data/checkerboard.jpg";
-//char object_file[] = "data/cube.obj";
-char object_file[] = "data/vase.obj";
-//char object_file[] = "data/dragon.obj";
+char vertshdr_file[] = "shdr/model_test.vert.glsl";
+char fragshdr_file[] = "shdr/model_test.frag.glsl";
+char texture_file[] = "gen/img.png";
+//char texture_file[] = "data/checkerboard.png";
+char object_file[] = "data/cube.obj";
+//char object_file[] = "data/vase.obj";
 //matices and stuff
 glm::vec3 camera_eye;
 glm::vec3 camera_center;
@@ -177,7 +176,6 @@ void window_init( int argc, char** argv){
 
 void shaders_init(){
 	printf("building vertex shader\n");
-	char vertshdr_file[] = "shdr/vase.vert.glsl";
 	int vertshdr = build_shader( GL_VERTEX_SHADER, vertshdr_file);
 	printf("building fragment shader\n");
 	int fragshdr = build_shader( GL_FRAGMENT_SHADER, fragshdr_file);
@@ -193,8 +191,10 @@ void vao_init(){
 	GLuint vertex_buffer;
 	GLuint index_buffer;
 	GLuint texture_buffer;
-	GLint vertex;
+	GLint vertex_in;
 	GLint normal_in;
+	GLint tex_in;
+	GLint texbind_in;
 	//gen vao
 	glGenVertexArrays( 1, &model_vao);
 	glBindVertexArray( model_vao);
@@ -203,16 +203,20 @@ void vao_init(){
 	size_t vert_count = model_mesh.positions.size() / 3;
 	size_t norm_count = model_mesh.normals.size() / 3;
 	size_t face_count = model_mesh.indices.size() / 3;
+	size_t texbind_count = model_mesh.texcoords.size() / 2;
 	printf("vert_count: %lu\n", vert_count);
 	printf("norm_count: %lu\n", norm_count);
 	printf("face_count: %lu\n", face_count);
+	printf("texbind_count: %lu\n", texbind_count);
 
 	//geometry
 	GLfloat* verts = new GLfloat[ 4 * vert_count];
 	GLfloat* norms = new GLfloat[ 3 * norm_count];
+	GLfloat* texbinds = new GLfloat[ 2 * texbind_count];
 	GLushort* faces = new GLushort[ 3 * face_count];
 	size_t verts_size = 4 * sizeof( GLfloat) * vert_count;
 	size_t norms_size = 3 * sizeof( GLfloat) * norm_count;
+	size_t texbinds_size = 2 * sizeof( GLfloat) * texbind_count;
 	size_t faces_size = 3 * sizeof( GLushort) * face_count;
 
 	//load geometry from mesh
@@ -227,6 +231,10 @@ void vao_init(){
 		norms[ 3 * i + 0] = model_mesh.normals.at( 3 * i + 0);
 		norms[ 3 * i + 1] = model_mesh.normals.at( 3 * i + 1);
 		norms[ 3 * i + 2] = model_mesh.normals.at( 3 * i + 2);}
+	// load texbinds
+	for( size_t i = 0; i < texbind_count; i++){
+		texbinds[ 2 * i + 0] = model_mesh.texcoords.at( 2 * i + 0);
+		texbinds[ 2 * i + 1] = model_mesh.texcoords.at( 2 * i + 1);}
 	// load indices
 	for( size_t i = 0; i < face_count; i++){
 		faces[ 3 * i + 0] = (GLushort) model_mesh.indices.at( 3 * i + 0);
@@ -237,21 +245,25 @@ void vao_init(){
 	glGenBuffers( 1, &vertex_buffer);
 	glBindBuffer( GL_ARRAY_BUFFER, vertex_buffer);
 	glBufferData( GL_ARRAY_BUFFER,
-		verts_size + norms_size, NULL, GL_STATIC_DRAW);
-	//bind verts
+		verts_size + norms_size + texbinds_size,
+		NULL, GL_STATIC_DRAW);
+	//buffer verts
 	glBufferSubData( GL_ARRAY_BUFFER,
 		0, verts_size, verts);
-	//bind norms
+	//buffer norms
 	glBufferSubData( GL_ARRAY_BUFFER,
 		verts_size, norms_size, norms);
+	//buffer texbinds
+	glBufferSubData( GL_ARRAY_BUFFER,
+		verts_size + norms_size, texbinds_size, texbinds);
 
-	//bind index buffer
+	//buffer index buffer
 	glGenBuffers( 1, &index_buffer);
 	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, index_buffer);
 	glBufferData( GL_ELEMENT_ARRAY_BUFFER,
 		faces_size, faces, GL_STATIC_DRAW);
 
-	//load and bind texture
+	//load and buffer texture
 	texture = loadPng( texture_file);
 	glGenTextures( 1, &texture_buffer);
 	glActiveTexture( GL_TEXTURE0);
@@ -268,23 +280,30 @@ void vao_init(){
 	glUseProgram( shader_program);
 
 	//bind vertex
-	vertex = glGetAttribLocation( shader_program,"vertex");
-	glVertexAttribPointer( vertex, 4, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray( vertex);
+	vertex_in = glGetAttribLocation( shader_program,"vertex_in");
+	glVertexAttribPointer( vertex_in, 4, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray( vertex_in);
 
 	//bind normals
 	normal_in = glGetAttribLocation( shader_program, "normal_in");
-	glVertexAttribPointer( normal_in, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glVertexAttribPointer( normal_in, 3, GL_FLOAT, GL_FALSE,
+		0, (void*) verts_size);
 	glEnableVertexAttribArray( normal_in);
 
-	/*texture_in = glGetAttribLocation( shader_program, "texture_in");
-	glVertexAttribPointer( texture_in, 2, GL_FLOAT, GL_FALSE,
-		0, (void*) ( sizeof( vertices) + sizeof( normals)));
-	glEnableVertexAttribArray(texture_in);*/
+	//bind texbinds
+	texbind_in = glGetAttribLocation( shader_program, "texbind_in");
+	glVertexAttribPointer( texbind_in, 2, GL_FLOAT, GL_FALSE,
+		0, (void*) ( verts_size + norms_size));
+	glEnableVertexAttribArray( texbind_in);
+
+	//bind texture
+	tex_in = glGetUniformLocation( shader_program, "tex_in");
+	glUniform1i( tex_in, 0);
 
 	//destroy temp arrays
 	/*delete[] verts;
 	delete[] norms;
+	delete[] texbinds;
 	delete[] faces;*/
 	
 	printf("done loading vao\n");}

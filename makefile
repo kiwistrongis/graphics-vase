@@ -16,7 +16,7 @@ cflags = $(includes) $(options)
 #ldflags = $(lib_includes) $(libs) $(warnings)
 ldflags = $(libs) $(warnings)
 #other vars
-package_file = pkg/kalev_vase.zip
+package_file = pkg/kalev.zip
 lib_file = bin/lib.a
 
 #includes
@@ -43,7 +43,12 @@ $(package_file): $(binaries)
 		pkg/.gitignore
 
 #tests
-test: test-vase
+test: test-texgen
 
-test-vase: bin/vase
+test-model: bin/model_test
 	primusrun $<
+
+
+test-texgen: bin/texgen
+	$<
+	eog gen/*

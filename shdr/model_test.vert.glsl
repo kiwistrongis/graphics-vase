@@ -3,15 +3,15 @@
 uniform mat4 model_view;
 uniform mat4 projection;
 
-in vec4 vertex;
+in vec4 vertex_in;
 in vec3 normal_in;
-in vec2 texture_in;
+in vec2 texbind_in;
 
 out vec3 normal;
-out vec2 tex_coord;
+out vec2 texbind;
 
 void main(){
-	gl_Position = projection * model_view * vertex;
+	gl_Position = projection * model_view * vertex_in;
 	normal = ( model_view * vec4( normal_in, 1.0)).xyz;
-	tex_coord = texture_in;
+	texbind = texbind_in;
 }

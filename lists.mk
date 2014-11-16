@@ -1,10 +1,12 @@
 #lists
 
 binaries = \
-	bin/vase \
+	bin/model_test \
+	bin/texgen \
 
 objects = \
-	obj/vase.o \
+	obj/model_test.o \
+	obj/texgen.o \
 	obj/perlin.o \
 	obj/shaders.o \
 	obj/texture.o \
